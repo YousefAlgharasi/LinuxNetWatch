@@ -11,11 +11,12 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from netwatch import db
+from netwatch import db, netctl
 
 INTERVAL_SECONDS = 5
 PRUNE_AFTER_SECONDS = 31 * 24 * 60 * 60  # keep ~31 days
 PRUNE_EVERY_N_SAMPLES = 200
+DAILY_CAP_SECONDS = 24 * 60 * 60
 
 # nethogs -t line: "<program path>/<pid>/<uid>\t<sent KB/s>\t<recv KB/s>"
 LINE_RE = re.compile(r"^(.+)/(\d+)/(\d+)\t([\d.]+)\t([\d.]+)$")
@@ -36,6 +37,11 @@ def run():
     conn = db.connect()
     os.chmod(db.DB_PATH, 0o644)
     sample_count = 0
+
+    try:
+        netctl.apply_all_rules()
+    except netctl.NetCtlError as exc:
+        print(f"warning: failed to apply saved network rules: {exc}", file=sys.stderr)
 
     proc = subprocess.Popen(
         ["nethogs", "-t", "-d", str(INTERVAL_SECONDS)],
@@ -63,6 +69,24 @@ def run():
         if sample_count % PRUNE_EVERY_N_SAMPLES == 0:
             db.prune_older_than(conn, PRUNE_AFTER_SECONDS)
             conn.commit()
+
+        rules = netctl.load_rules()
+        if rules:
+            try:
+                netctl.classify_running_processes(rules)
+            except OSError:
+                pass
+            for app_name, entry in rules.items():
+                cap_mb = entry.get("daily_cap_mb")
+                if not cap_mb or entry.get("blocked"):
+                    continue
+                sent, recv = db.app_totals_since(conn, app_name, now - DAILY_CAP_SECONDS)
+                if (sent + recv) >= cap_mb * 1024 * 1024:
+                    try:
+                        netctl.set_blocked(app_name, True)
+                        print(f"{app_name} hit its {cap_mb}MB daily cap, blocking network access")
+                    except netctl.NetCtlError as exc:
+                        print(f"warning: failed to auto-block {app_name}: {exc}", file=sys.stderr)
 
     assert proc.stdout is not None
     for line in proc.stdout:

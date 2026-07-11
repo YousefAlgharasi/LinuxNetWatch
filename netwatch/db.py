@@ -74,6 +74,14 @@ def prune_older_than(conn, seconds):
     conn.execute("DELETE FROM usage_samples WHERE ts < ?", (time.time() - seconds,))
 
 
+def app_totals_since(conn, app_name, since_ts):
+    row = conn.execute(
+        "SELECT SUM(sent_bytes), SUM(recv_bytes) FROM usage_samples WHERE app_name = ? AND ts >= ?",
+        (app_name, since_ts),
+    ).fetchone()
+    return row[0] or 0, row[1] or 0
+
+
 def earliest_sample_ts(conn):
     row = conn.execute("SELECT MIN(ts) FROM usage_samples").fetchone()
     return row[0]

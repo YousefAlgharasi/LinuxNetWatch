@@ -9,7 +9,7 @@ fi
 
 echo "==> Installing system dependencies"
 sudo apt update
-sudo apt install -y python3-gi gir1.2-gtk-3.0 nethogs
+sudo apt install -y python3-gi gir1.2-gtk-3.0 nethogs iptables iproute2 policykit-1
 
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 

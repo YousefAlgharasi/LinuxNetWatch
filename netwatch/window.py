@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """LinuxNetWatch: per-app bandwidth usage monitor."""
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -12,7 +13,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
 
-from netwatch import db
+from netwatch import db, netctl
 
 REFRESH_MS = 5000
 RANGE_LABELS = ["5m", "10m", "1h", "3h", "7h", "1d", "2d", "7d", "30d"]
@@ -166,8 +167,11 @@ class NetWatchWindow(Gtk.Window):
         self.show_app_dialog(app_name, download, upload, total)
 
     def show_app_dialog(self, app_name, download, upload, total):
+        rules = netctl.load_rules()
+        entry = rules.get(app_name, {})
+
         dialog = Gtk.Dialog(title=app_name, transient_for=self, modal=True)
-        dialog.set_default_size(360, 200)
+        dialog.set_default_size(380, 280)
         box = dialog.get_content_area()
         box.set_border_width(12)
         box.set_spacing(6)
@@ -177,26 +181,70 @@ class NetWatchWindow(Gtk.Window):
         box.add(Gtk.Label(label=f"Total: {total}", xalign=0))
         box.add(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
 
+        block_check = Gtk.CheckButton(label="Disable network access")
+        block_check.set_active(bool(entry.get("blocked")))
+        block_check.connect("toggled", self.on_block_toggled, app_name)
+        box.add(block_check)
+
+        limit_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        limit_row.add(Gtk.Label(label="Upload limit (KB/s, 0 = unlimited):"))
+        limit_spin = Gtk.SpinButton.new_with_range(0, 100000, 10)
+        limit_spin.set_value((entry.get("limit_kbps") or 0) / 8)  # stored as kbit/s
+        limit_row.pack_start(limit_spin, False, False, 0)
+        box.add(limit_row)
+
+        cap_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        cap_row.add(Gtk.Label(label="Daily data cap (MB, 0 = none):"))
+        cap_spin = Gtk.SpinButton.new_with_range(0, 1000000, 50)
+        cap_spin.set_value(entry.get("daily_cap_mb") or 0)
+        cap_row.pack_start(cap_spin, False, False, 0)
+        box.add(cap_row)
+
         note = Gtk.Label(
-            label="Blocking network access and setting bandwidth/data limits\n"
-                  "for this app are coming in a future update.",
+            label="Note: only upload can be rate-limited (Linux can't classify\n"
+                  "incoming traffic by process before it's already received).\n"
+                  "Download usage still counts toward the daily data cap.",
             xalign=0,
         )
         note.set_line_wrap(True)
         box.add(note)
 
-        block_button = Gtk.Button(label="Disable network access (coming soon)")
-        block_button.set_sensitive(False)
-        box.add(block_button)
-
-        limit_button = Gtk.Button(label="Set bandwidth/data limit (coming soon)")
-        limit_button.set_sensitive(False)
-        box.add(limit_button)
+        apply_button = Gtk.Button(label="Apply")
+        apply_button.connect(
+            "clicked", self.on_apply_limits, app_name, limit_spin, cap_spin, dialog
+        )
+        box.add(apply_button)
 
         dialog.add_button("Close", Gtk.ResponseType.CLOSE)
         dialog.show_all()
         dialog.run()
         dialog.destroy()
+
+    def on_block_toggled(self, widget, app_name):
+        action = "block" if widget.get_active() else "unblock"
+        self.run_ctl(action, app_name)
+
+    def on_apply_limits(self, _button, app_name, limit_spin, cap_spin, dialog):
+        kbps = int(limit_spin.get_value()) * 8  # KB/s -> kbit/s for tc
+        cap_mb = cap_spin.get_value()
+        if kbps > 0:
+            self.run_ctl("limit", app_name, str(kbps))
+        else:
+            self.run_ctl("unlimit", app_name)
+        if cap_mb > 0:
+            self.run_ctl("daily-cap", app_name, str(cap_mb))
+        else:
+            self.run_ctl("daily-cap-clear", app_name)
+        dialog.destroy()
+
+    def run_ctl(self, *args):
+        cli_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ctl_cli.py")
+        try:
+            subprocess.run(["pkexec", sys.executable, cli_path, *args], check=True)
+        except subprocess.CalledProcessError as exc:
+            self.show_error(f"Failed to apply network rule: {exc}")
+        except FileNotFoundError:
+            self.show_error("pkexec not found. Install polkit to use block/limit controls.")
 
 
 def main():
