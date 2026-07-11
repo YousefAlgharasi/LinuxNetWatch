@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """LinuxNetWatch tray icon: shows live combined bandwidth total, opens the full viewer."""
 import os
+import subprocess
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -11,7 +13,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("AppIndicator3", "0.1")
 from gi.repository import AppIndicator3, GLib, Gtk
 
-from netwatch import db
+from netwatch import db, netctl
 from netwatch.window import NetWatchWindow, human_bytes
 
 APP_ID = "linuxnetwatch"
@@ -32,6 +34,7 @@ class NetWatchTray:
             self.conn = None
 
         self.window = None
+        self._last_event_check = time.time()
 
         self.menu = Gtk.Menu()
 
@@ -74,7 +77,26 @@ class NetWatchTray:
         self.totals_item.set_label(
             f"Last 24h: Download {human_bytes(recv)}   Upload {human_bytes(sent)}"
         )
+        self._check_events()
         return True
+
+    def _check_events(self):
+        try:
+            events = netctl.get_events_since(self._last_event_check)
+        except (OSError, ValueError):
+            return
+        self._last_event_check = time.time()
+        for event in events:
+            self._notify(
+                f"LinuxNetWatch: {event['app_name']} blocked",
+                event["reason"].capitalize(),
+            )
+
+    def _notify(self, title, body):
+        try:
+            subprocess.run(["notify-send", title, body], check=False)
+        except FileNotFoundError:
+            pass
 
 
 def main():

@@ -9,7 +9,8 @@ fi
 
 echo "==> Installing system dependencies"
 sudo apt update
-sudo apt install -y python3-gi gir1.2-gtk-3.0 gir1.2-appindicator3-0.1 nethogs iptables iproute2 policykit-1
+sudo apt install -y python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-appindicator3-0.1 \
+    nethogs iptables iproute2 policykit-1 libnotify-bin
 
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 

@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import time
+from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from netwatch import db, netctl
@@ -16,7 +17,6 @@ from netwatch import db, netctl
 INTERVAL_SECONDS = 5
 PRUNE_AFTER_SECONDS = 31 * 24 * 60 * 60  # keep ~31 days
 PRUNE_EVERY_N_SAMPLES = 200
-DAILY_CAP_SECONDS = 24 * 60 * 60
 
 # nethogs -t line: "<program path>/<pid>/<uid>\t<sent KB/s>\t<recv KB/s>"
 LINE_RE = re.compile(r"^(.+)/(\d+)/(\d+)\t([\d.]+)\t([\d.]+)$")
@@ -76,14 +76,33 @@ def run():
                 netctl.classify_running_processes(rules)
             except OSError:
                 pass
+            today = date.today().isoformat()
             for app_name, entry in rules.items():
                 cap_mb = entry.get("daily_cap_mb")
-                if not cap_mb or entry.get("blocked"):
+                if not cap_mb:
                     continue
-                sent, recv = db.app_totals_since(conn, app_name, now - DAILY_CAP_SECONDS)
+                # A cap-triggered block from a previous day is lifted so the
+                # app gets its fresh daily allowance; a manual block (no
+                # cap_blocked_date) is left alone.
+                if entry.get("blocked") and entry.get("cap_blocked_date") not in (None, today):
+                    try:
+                        netctl.set_blocked(app_name, False)
+                    except netctl.NetCtlError as exc:
+                        print(f"warning: failed to reset daily block for {app_name}: {exc}",
+                              file=sys.stderr)
+                    continue
+                if entry.get("blocked"):
+                    continue
+                sent, recv = db.app_totals_today(conn, app_name)
                 if (sent + recv) >= cap_mb * 1024 * 1024:
                     try:
-                        netctl.set_blocked(app_name, True)
+                        netctl.set_blocked(
+                            app_name, True,
+                            reason=f"hit its {cap_mb:g}MB daily data cap",
+                        )
+                        rules = netctl.load_rules()
+                        rules[app_name]["cap_blocked_date"] = today
+                        netctl.save_rules(rules)
                         print(f"{app_name} hit its {cap_mb}MB daily cap, blocking network access")
                     except netctl.NetCtlError as exc:
                         print(f"warning: failed to auto-block {app_name}: {exc}", file=sys.stderr)

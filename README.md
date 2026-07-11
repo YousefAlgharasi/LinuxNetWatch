@@ -16,15 +16,23 @@ upload speed, or auto-block it once it hits a daily data limit.
   auto-blocks an app once it crosses its configured daily data cap.
 - **Viewer** (`netwatch/window.py`): a GTK app you run as your normal user.
   Lists every app with download/upload/total for the selected time range,
-  plus a combined total. Double-click any app for a detail popup: a
-  "Disable network access" checkbox, an upload-limit field (KB/s), and a
-  daily data cap field (MB).
+  plus a combined total. Double-click any app for a detail popup with a
+  24-hour usage chart, a "Disable network access" checkbox, an upload-limit
+  field (KB/s), and a daily data cap field (MB). The toolbar also has:
+  - **Rules** — a single list of every app with an active block/limit/cap,
+    instead of having to open each app individually to check.
+  - **Kill Switch** — block all outbound traffic *except* an allow-list of
+    apps you pick (a "only these apps get internet" mode).
+  - **Export CSV** — dump the selected time range's raw history to a file.
 - **Enforcement** (`netwatch/netctl.py`): matching processes are classified
   into a `net_cls` cgroup per app. `iptables` drops outbound traffic tagged
   with a blocked app's cgroup; `tc` (traffic control, htb) shapes upload
   bandwidth for a rate-limited app's cgroup. The GUI invokes these changes
   as root via `pkexec` (the standard "enter your password once" desktop
-  prompt) — there's no need to run the viewer itself as root.
+  prompt) — there's no need to run the viewer itself as root. Daily data
+  caps reset at local midnight (not a rolling 24h window), and an app
+  auto-blocked by a cap is automatically un-blocked the next day. Getting
+  auto-blocked also triggers a desktop notification from the tray icon.
 
 ### Important limitation: upload-only rate limiting
 
@@ -47,12 +55,12 @@ Only the *live rate limit* (KB/s) is upload-only.
 ### Option A: .deb package (easiest)
 
 Download the prebuilt package from
-[`dist/linuxnetwatch_0.1.0_all.deb`](https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.1.0_all.deb)
+[`dist/linuxnetwatch_0.2.0_all.deb`](https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.2.0_all.deb)
 and install it:
 
 ```bash
-wget https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.1.0_all.deb
-sudo apt install ./linuxnetwatch_0.1.0_all.deb
+wget https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.2.0_all.deb
+sudo apt install ./linuxnetwatch_0.2.0_all.deb
 ```
 
 `apt` resolves and installs all dependencies automatically, sets up the
@@ -66,8 +74,8 @@ To build the `.deb` yourself instead of downloading it:
 ```bash
 git clone https://github.com/YousefAlgharasi/LinuxNetWatch
 cd LinuxNetWatch
-./packaging/build-deb.sh
-sudo apt install ./linuxnetwatch_0.1.0_all.deb
+./packaging/build-deb.sh 0.2.0
+sudo apt install ./linuxnetwatch_0.2.0_all.deb
 ```
 
 ### Option B: install script (for development)
@@ -98,7 +106,11 @@ Check the collector is healthy any time with:
 systemctl status linuxnetwatch-collector.service
 ```
 
-## Roadmap
+## Known limitations
 
-- A dedicated "Rules" view listing every app with an active block/limit,
-  instead of only being visible per-app in the detail popup.
+- Block/limit/cap rules apply to every process with a matching binary name —
+  there's no way to distinguish two separately-launched instances of the
+  same app.
+- If the collector crashes and systemd restarts it, there's a brief window
+  where a previously-blocked app could reach the network before rules are
+  re-applied.

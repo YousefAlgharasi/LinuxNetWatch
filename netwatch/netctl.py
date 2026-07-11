@@ -18,14 +18,19 @@ import json
 import os
 import re
 import subprocess
+import time
 
 CGROUP_ROOT = "/sys/fs/cgroup/net_cls/linuxnetwatch"
 RULES_PATH = "/var/lib/linuxnetwatch/rules.json"
+EVENTS_PATH = "/var/lib/linuxnetwatch/events.json"
+KILLSWITCH_PATH = "/var/lib/linuxnetwatch/killswitch.json"
 IPTABLES_CHAIN = "LINUXNETWATCH_BLOCK"
+KILLSWITCH_CHAIN = "LINUXNETWATCH_KILLSWITCH"
 TC_MAJOR = 1
 TC_DEFAULT_MINOR = 999  # class for unclassified/default traffic
 TC_ROOT_RATE = "1000mbit"  # ceiling for the root class; effectively "no limit"
 MIN_CLASSID_MINOR = 10
+MAX_EVENTS = 200
 
 
 class NetCtlError(RuntimeError):
@@ -51,6 +56,30 @@ def save_rules(rules):
     with open(RULES_PATH, "w") as f:
         json.dump(rules, f, indent=2)
     os.chmod(RULES_PATH, 0o644)
+
+
+def log_event(app_name, reason):
+    events = []
+    if os.path.exists(EVENTS_PATH):
+        try:
+            with open(EVENTS_PATH) as f:
+                events = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            events = []
+    events.append({"ts": time.time(), "app_name": app_name, "reason": reason})
+    events = events[-MAX_EVENTS:]
+    os.makedirs(os.path.dirname(EVENTS_PATH), exist_ok=True)
+    with open(EVENTS_PATH, "w") as f:
+        json.dump(events, f)
+    os.chmod(EVENTS_PATH, 0o644)
+
+
+def get_events_since(since_ts):
+    if not os.path.exists(EVENTS_PATH):
+        return []
+    with open(EVENTS_PATH) as f:
+        events = json.load(f)
+    return [e for e in events if e["ts"] > since_ts]
 
 
 def ensure_net_cls_mounted():
@@ -131,10 +160,14 @@ def _ensure_iptables_chain():
     _run(["iptables", "-A", "OUTPUT", "-j", IPTABLES_CHAIN])
 
 
-def set_blocked(app_name, blocked):
+def set_blocked(app_name, blocked, reason=None):
     rules = load_rules()
     entry = get_or_create_entry(app_name, rules)
     entry["blocked"] = blocked
+    if reason is None:
+        # A manual (GUI/CLI) block/unblock overrides any pending daily-cap
+        # auto-reset bookkeeping.
+        entry.pop("cap_blocked_date", None)
     save_rules(rules)
 
     _ensure_iptables_chain()
@@ -144,6 +177,8 @@ def set_blocked(app_name, blocked):
     if blocked:
         _run(["iptables", "-A", IPTABLES_CHAIN, "-m", "cgroup", "--cgroup", classid, "-j", "DROP"])
     classify_running_processes(rules)
+    if reason:
+        log_event(app_name, reason)
 
 
 def _ensure_tc_root(iface):
@@ -199,3 +234,64 @@ def apply_all_rules():
         if entry.get("limit_kbps"):
             set_limit(app_name, entry["limit_kbps"])
     classify_running_processes(rules)
+
+    ks_state = load_killswitch_state()
+    if ks_state.get("enabled"):
+        enable_kill_switch(ks_state.get("allowed", []))
+
+
+def load_killswitch_state():
+    if not os.path.exists(KILLSWITCH_PATH):
+        return {"enabled": False, "allowed": []}
+    with open(KILLSWITCH_PATH) as f:
+        return json.load(f)
+
+
+def _save_killswitch_state(state):
+    os.makedirs(os.path.dirname(KILLSWITCH_PATH), exist_ok=True)
+    with open(KILLSWITCH_PATH, "w") as f:
+        json.dump(state, f, indent=2)
+    os.chmod(KILLSWITCH_PATH, 0o644)
+
+
+def _ensure_killswitch_jump():
+    _run(["iptables", "-N", KILLSWITCH_CHAIN], check=False)
+    result = _run(["iptables", "-C", "OUTPUT", "-j", KILLSWITCH_CHAIN], check=False)
+    if result.returncode != 0:
+        _run(["iptables", "-A", "OUTPUT", "-j", KILLSWITCH_CHAIN])
+
+
+def enable_kill_switch(allowed_apps):
+    """Block all outbound traffic except loopback, DNS, and the given app names.
+
+    WARNING: this affects the whole machine, not just controlled apps -- any
+    application not in allowed_apps loses network access, including ones
+    LinuxNetWatch has never seen before. Explicit per-app blocks (set_blocked)
+    still take precedence since that chain is checked first.
+    """
+    rules = load_rules()
+    ensure_net_cls_mounted()
+    _ensure_killswitch_jump()
+    _run(["iptables", "-F", KILLSWITCH_CHAIN])
+
+    _run(["iptables", "-A", KILLSWITCH_CHAIN, "-o", "lo", "-j", "ACCEPT"])
+    _run(["iptables", "-A", KILLSWITCH_CHAIN, "-p", "udp", "--dport", "53", "-j", "ACCEPT"])
+    _run(["iptables", "-A", KILLSWITCH_CHAIN, "-p", "tcp", "--dport", "53", "-j", "ACCEPT"])
+
+    for app_name in allowed_apps:
+        entry = get_or_create_entry(app_name, rules)
+        classid = _classid_hex(entry["minor"])
+        _run(["iptables", "-A", KILLSWITCH_CHAIN, "-m", "cgroup", "--cgroup", classid,
+              "-j", "ACCEPT"])
+    save_rules(rules)
+
+    _run(["iptables", "-A", KILLSWITCH_CHAIN, "-j", "DROP"])
+
+    _save_killswitch_state({"enabled": True, "allowed": allowed_apps})
+    classify_running_processes(rules)
+
+
+def disable_kill_switch():
+    _run(["iptables", "-D", "OUTPUT", "-j", KILLSWITCH_CHAIN], check=False)
+    _run(["iptables", "-F", KILLSWITCH_CHAIN], check=False)
+    _save_killswitch_state({"enabled": False, "allowed": []})

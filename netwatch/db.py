@@ -1,6 +1,7 @@
 """SQLite storage for per-app bandwidth samples."""
 import sqlite3
 import time
+from datetime import datetime
 
 DB_PATH = "/var/lib/linuxnetwatch/usage.db"
 
@@ -85,3 +86,45 @@ def app_totals_since(conn, app_name, since_ts):
 def earliest_sample_ts(conn):
     row = conn.execute("SELECT MIN(ts) FROM usage_samples").fetchone()
     return row[0]
+
+
+def today_midnight_ts():
+    """Start of the current calendar day, local time."""
+    now = datetime.now()
+    return datetime(now.year, now.month, now.day).timestamp()
+
+
+def app_totals_today(conn, app_name):
+    """Usage since local midnight, for calendar-day data caps."""
+    return app_totals_since(conn, app_name, today_midnight_ts())
+
+
+def hourly_buckets(conn, app_name, hours=24):
+    """Return (hour_start_ts, sent_bytes, recv_bytes) for each of the last N hours, oldest first."""
+    since = time.time() - hours * 3600
+    rows = conn.execute(
+        "SELECT ts, sent_bytes, recv_bytes FROM usage_samples WHERE app_name = ? AND ts >= ?",
+        (app_name, since),
+    ).fetchall()
+    buckets = {}
+    for ts, sent, recv in rows:
+        bucket = int(ts // 3600) * 3600
+        b_sent, b_recv = buckets.get(bucket, (0, 0))
+        buckets[bucket] = (b_sent + sent, b_recv + recv)
+    now_bucket = int(time.time() // 3600) * 3600
+    result = []
+    for i in range(hours - 1, -1, -1):
+        bucket = now_bucket - i * 3600
+        sent, recv = buckets.get(bucket, (0, 0))
+        result.append((bucket, sent, recv))
+    return result
+
+
+def rows_for_export(conn, range_key):
+    """Return (ts, app_name, sent_bytes, recv_bytes) rows for the given time range, oldest first."""
+    seconds = TIME_RANGES[range_key]
+    since = time.time() - seconds
+    return conn.execute(
+        "SELECT ts, app_name, sent_bytes, recv_bytes FROM usage_samples WHERE ts >= ? ORDER BY ts",
+        (since,),
+    ).fetchall()

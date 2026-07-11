@@ -8,6 +8,8 @@ Usage:
   netwatch-ctl unlimit <app_name>
   netwatch-ctl daily-cap <app_name> <mb>
   netwatch-ctl daily-cap-clear <app_name>
+  netwatch-ctl killswitch-enable <app_name1,app_name2,...>
+  netwatch-ctl killswitch-disable
 """
 import os
 import sys
@@ -40,6 +42,11 @@ def main():
             netctl.set_daily_cap(args[1], float(args[2]))
         elif command == "daily-cap-clear" and len(args) == 2:
             netctl.set_daily_cap(args[1], None)
+        elif command == "killswitch-enable" and len(args) == 2:
+            allowed = [name for name in args[1].split(",") if name]
+            netctl.enable_kill_switch(allowed)
+        elif command == "killswitch-disable" and len(args) == 1:
+            netctl.disable_kill_switch()
         else:
             print(__doc__)
             sys.exit(1)

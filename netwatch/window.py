@@ -8,6 +8,8 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import csv
+
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -70,12 +72,28 @@ class NetWatchWindow(Gtk.Window):
         self.range_combo.connect("changed", lambda _w: self.refresh())
         top_bar.pack_start(self.range_combo, False, False, 0)
 
+        rules_button = Gtk.Button(label="Rules")
+        rules_button.connect("clicked", lambda _w: self.show_rules_dialog())
+        top_bar.pack_start(rules_button, False, False, 0)
+
+        killswitch_button = Gtk.Button(label="Kill Switch")
+        killswitch_button.connect("clicked", lambda _w: self.show_killswitch_dialog())
+        top_bar.pack_start(killswitch_button, False, False, 0)
+
+        export_button = Gtk.Button(label="Export CSV")
+        export_button.connect("clicked", lambda _w: self.on_export_csv())
+        top_bar.pack_start(export_button, False, False, 0)
+
         self.totals_label = Gtk.Label(label="")
         top_bar.pack_end(self.totals_label, False, False, 0)
 
         self.status_label = Gtk.Label(label="", xalign=0)
         self.status_label.get_style_context().add_class("dim-label")
         root.pack_start(self.status_label, False, False, 0)
+
+        self.killswitch_label = Gtk.Label(label="", xalign=0)
+        self.killswitch_label.get_style_context().add_class("dim-label")
+        root.pack_start(self.killswitch_label, False, False, 0)
 
         # App, Download, Upload, Total
         self.store = Gtk.ListStore(str, str, str, str, int)
@@ -141,6 +159,18 @@ class NetWatchWindow(Gtk.Window):
             f"Combined: {human_bytes(total_sent + total_recv)}"
         )
         self._update_status_label(range_key)
+        self._update_killswitch_label()
+
+    def _update_killswitch_label(self):
+        try:
+            state = netctl.load_killswitch_state()
+        except (OSError, ValueError):
+            state = {"enabled": False, "allowed": []}
+        if state.get("enabled"):
+            allowed = ", ".join(state.get("allowed", [])) or "(none)"
+            self.killswitch_label.set_text(f"Kill switch ON — only allowed: {allowed}")
+        else:
+            self.killswitch_label.set_text("")
 
     def _update_status_label(self, range_key):
         earliest = db.earliest_sample_ts(self.conn)
@@ -171,7 +201,7 @@ class NetWatchWindow(Gtk.Window):
         entry = rules.get(app_name, {})
 
         dialog = Gtk.Dialog(title=app_name, transient_for=self, modal=True)
-        dialog.set_default_size(380, 280)
+        dialog.set_default_size(420, 440)
         box = dialog.get_content_area()
         box.set_border_width(12)
         box.set_spacing(6)
@@ -179,6 +209,13 @@ class NetWatchWindow(Gtk.Window):
         box.add(Gtk.Label(label=f"Download ({self.current_range()}): {download}", xalign=0))
         box.add(Gtk.Label(label=f"Upload ({self.current_range()}): {upload}", xalign=0))
         box.add(Gtk.Label(label=f"Total: {total}", xalign=0))
+        box.add(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+
+        box.add(Gtk.Label(label="Last 24 hours:", xalign=0))
+        chart = Gtk.DrawingArea()
+        chart.set_size_request(-1, 100)
+        chart.connect("draw", self.on_draw_chart, app_name)
+        box.add(chart)
         box.add(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
 
         block_check = Gtk.CheckButton(label="Disable network access")
@@ -220,6 +257,29 @@ class NetWatchWindow(Gtk.Window):
         dialog.run()
         dialog.destroy()
 
+    def on_draw_chart(self, widget, cr, app_name):
+        width = widget.get_allocated_width()
+        height = widget.get_allocated_height()
+
+        cr.set_source_rgb(0.15, 0.15, 0.17)
+        cr.rectangle(0, 0, width, height)
+        cr.fill()
+
+        if self.conn is None:
+            return
+        buckets = db.hourly_buckets(self.conn, app_name, hours=24)
+        totals = [sent + recv for _ts, sent, recv in buckets]
+        max_total = max(totals) if totals and max(totals) > 0 else 1
+
+        n = len(buckets)
+        bar_width = width / n
+        for i, total in enumerate(totals):
+            bar_height = (total / max_total) * (height - 4)
+            x = i * bar_width
+            cr.set_source_rgb(0.30, 0.55, 0.90)
+            cr.rectangle(x + 1, height - bar_height, max(bar_width - 2, 1), bar_height)
+            cr.fill()
+
     def on_block_toggled(self, widget, app_name):
         action = "block" if widget.get_active() else "unblock"
         self.run_ctl(action, app_name)
@@ -245,6 +305,140 @@ class NetWatchWindow(Gtk.Window):
             self.show_error(f"Failed to apply network rule: {exc}")
         except FileNotFoundError:
             self.show_error("pkexec not found. Install polkit to use block/limit controls.")
+
+    def show_rules_dialog(self):
+        rules = netctl.load_rules()
+
+        dialog = Gtk.Dialog(title="Active Rules", transient_for=self, modal=True)
+        dialog.set_default_size(480, 320)
+        box = dialog.get_content_area()
+        box.set_border_width(12)
+
+        active = {
+            name: entry for name, entry in rules.items()
+            if entry.get("blocked") or entry.get("limit_kbps") or entry.get("daily_cap_mb")
+        }
+
+        if not active:
+            box.add(Gtk.Label(label="No apps are currently blocked, limited, or capped."))
+        else:
+            store = Gtk.ListStore(str, str, str, str)
+            for name, entry in active.items():
+                store.append([
+                    name,
+                    "Yes" if entry.get("blocked") else "",
+                    f"{entry['limit_kbps'] // 8} KB/s" if entry.get("limit_kbps") else "",
+                    f"{entry['daily_cap_mb']:g} MB" if entry.get("daily_cap_mb") else "",
+                ])
+            view = Gtk.TreeView(model=store)
+            for i, title in enumerate(["App", "Blocked", "Upload limit", "Daily cap"]):
+                renderer = Gtk.CellRendererText()
+                column = Gtk.TreeViewColumn(title, renderer, text=i)
+                view.append_column(column)
+            view.connect(
+                "row-activated",
+                lambda v, path, col: (
+                    dialog.destroy(),
+                    self.show_app_dialog(v.get_model()[path][0], "-", "-", "-"),
+                ),
+            )
+            scroller = Gtk.ScrolledWindow()
+            scroller.add(view)
+            box.pack_start(scroller, True, True, 0)
+            box.add(Gtk.Label(
+                label="Double-click a row to edit or clear that app's rules.",
+                xalign=0,
+            ))
+
+        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+        dialog.show_all()
+        dialog.run()
+        dialog.destroy()
+
+    def show_killswitch_dialog(self):
+        state = netctl.load_killswitch_state()
+        known_apps = sorted({name for name, _s, _r in db.totals_by_app(self.conn, "30d")}
+                             if self.conn else [])
+
+        dialog = Gtk.Dialog(title="Kill Switch", transient_for=self, modal=True)
+        dialog.set_default_size(360, 420)
+        box = dialog.get_content_area()
+        box.set_border_width(12)
+        box.set_spacing(6)
+
+        warning = Gtk.Label(
+            label="When enabled, every app EXCEPT the ones checked below loses "
+                  "network access (DNS and loopback stay allowed). This affects "
+                  "the whole machine, not just apps LinuxNetWatch already knows "
+                  "about.",
+            xalign=0,
+        )
+        warning.set_line_wrap(True)
+        box.add(warning)
+
+        enabled_check = Gtk.CheckButton(label="Enable kill switch")
+        enabled_check.set_active(bool(state.get("enabled")))
+        box.add(enabled_check)
+
+        box.add(Gtk.Label(label="Allowed apps:", xalign=0))
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_size_request(-1, 220)
+        allowed_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        scroller.add(allowed_list)
+        box.pack_start(scroller, True, True, 0)
+
+        checks = {}
+        allowed_set = set(state.get("allowed", []))
+        for name in known_apps:
+            check = Gtk.CheckButton(label=name)
+            check.set_active(name in allowed_set)
+            allowed_list.pack_start(check, False, False, 0)
+            checks[name] = check
+
+        apply_button = Gtk.Button(label="Apply")
+        apply_button.connect(
+            "clicked", self.on_apply_killswitch, enabled_check, checks, dialog
+        )
+        box.add(apply_button)
+
+        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+        dialog.show_all()
+        dialog.run()
+        dialog.destroy()
+
+    def on_apply_killswitch(self, _button, enabled_check, checks, dialog):
+        if enabled_check.get_active():
+            allowed = [name for name, check in checks.items() if check.get_active()]
+            self.run_ctl("killswitch-enable", ",".join(allowed))
+        else:
+            self.run_ctl("killswitch-disable")
+        dialog.destroy()
+        self.refresh()
+
+    def on_export_csv(self):
+        chooser = Gtk.FileChooserDialog(
+            title="Export usage history as CSV", transient_for=self,
+            action=Gtk.FileChooserAction.SAVE,
+        )
+        chooser.add_buttons(
+            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+            Gtk.STOCK_SAVE, Gtk.ResponseType.OK,
+        )
+        chooser.set_current_name(f"linuxnetwatch_{self.current_range()}.csv")
+        response = chooser.run()
+        path = chooser.get_filename()
+        chooser.destroy()
+        if response != Gtk.ResponseType.OK or not path:
+            return
+        try:
+            rows = db.rows_for_export(self.conn, self.current_range())
+            with open(path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "app_name", "sent_bytes", "recv_bytes"])
+                for ts, app_name, sent, recv in rows:
+                    writer.writerow([datetime.fromtimestamp(ts).isoformat(), app_name, sent, recv])
+        except OSError as exc:
+            self.show_error(f"Failed to export CSV: {exc}")
 
     def show_error(self, message):
         dialog = Gtk.MessageDialog(
