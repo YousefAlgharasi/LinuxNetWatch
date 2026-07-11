@@ -9,7 +9,7 @@ fi
 
 echo "==> Installing system dependencies"
 sudo apt update
-sudo apt install -y python3-gi gir1.2-gtk-3.0 nethogs iptables iproute2 policykit-1
+sudo apt install -y python3-gi gir1.2-gtk-3.0 gir1.2-appindicator3-0.1 nethogs iptables iproute2 policykit-1
 
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -33,7 +33,7 @@ mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/linuxnetwatch" <<EOF
 #!/usr/bin/env bash
 export PYTHONPATH="$VIEWER_DIR:\$PYTHONPATH"
-exec python3 -m netwatch.window
+exec python3 -m netwatch.tray
 EOF
 chmod +x "$BIN_DIR/linuxnetwatch"
 
@@ -41,11 +41,17 @@ DESKTOP_DIR="$HOME/.local/share/applications"
 mkdir -p "$DESKTOP_DIR"
 cp "$SRC_DIR/linuxnetwatch.desktop" "$DESKTOP_DIR/"
 
+echo "==> Enabling autostart on login"
+AUTOSTART_DIR="$HOME/.config/autostart"
+mkdir -p "$AUTOSTART_DIR"
+cp "$SRC_DIR/linuxnetwatch.desktop" "$AUTOSTART_DIR/"
+
 echo
 echo "Done. The collector service is running in the background as root, logging"
 echo "per-app bandwidth to /var/lib/linuxnetwatch/usage.db."
 echo "Make sure $BIN_DIR is on your PATH, then launch LinuxNetWatch from the app"
-echo "menu or run 'linuxnetwatch' in a terminal."
+echo "menu or run 'linuxnetwatch' in a terminal. It will now also start"
+echo "automatically on login, showing a tray icon with today's totals."
 echo
 echo "Check the collector is running with:"
 echo "  systemctl status linuxnetwatch-collector.service"

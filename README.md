@@ -58,10 +58,12 @@ app-menu shortcut.
 
 ## Run
 
-Launch **LinuxNetWatch** from the app menu, or run `linuxnetwatch`. Pick a
-time range from the dropdown, and double-click any app row to see details
-and set controls. Checking "Disable network access" or clicking "Apply" on
-a limit will prompt for your password via `pkexec` the first time.
+LinuxNetWatch starts automatically on login as a **tray icon** showing your
+last-24h combined download/upload total. Click it and choose "Open
+LinuxNetWatch" for the full window: pick a time range from the dropdown, and
+double-click any app row to see details and set controls. Checking "Disable
+network access" or clicking "Apply" on a limit will prompt for your password
+via `pkexec` the first time.
 
 Check the collector is healthy any time with:
 
@@ -71,6 +73,5 @@ systemctl status linuxnetwatch-collector.service
 
 ## Roadmap
 
-- Tray icon with live combined speed, not just the main window.
 - A dedicated "Rules" view listing every app with an active block/limit,
   instead of only being visible per-app in the detail popup.

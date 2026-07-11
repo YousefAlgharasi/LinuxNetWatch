@@ -246,6 +246,14 @@ class NetWatchWindow(Gtk.Window):
         except FileNotFoundError:
             self.show_error("pkexec not found. Install polkit to use block/limit controls.")
 
+    def show_error(self, message):
+        dialog = Gtk.MessageDialog(
+            transient_for=self, flags=0, message_type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.OK, text=message,
+        )
+        dialog.run()
+        dialog.destroy()
+
 
 def main():
     win = NetWatchWindow()
