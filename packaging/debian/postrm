@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "purge" ]; then
+    rm -rf /var/lib/linuxnetwatch
+    rm -rf /sys/fs/cgroup/net_cls/linuxnetwatch 2>/dev/null || true
+fi
+
+exit 0

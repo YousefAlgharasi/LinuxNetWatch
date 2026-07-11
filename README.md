@@ -44,6 +44,33 @@ Only the *live rate limit* (KB/s) is upload-only.
 
 ## Install
 
+### Option A: .deb package (easiest)
+
+Download the latest `linuxnetwatch_<version>_all.deb` from the
+[Releases](https://github.com/YousefAlgharasi/LinuxNetWatch/releases) page
+and install it:
+
+```bash
+sudo apt install ./linuxnetwatch_*_all.deb
+```
+
+`apt` resolves and installs all dependencies automatically, sets up the
+collector as a systemd service, and enables autostart for every user
+account on the machine (via `/etc/xdg/autostart`) — no manual steps needed.
+To uninstall: `sudo apt remove linuxnetwatch` (or `purge` to also delete
+collected history).
+
+To build the `.deb` yourself instead of downloading it:
+
+```bash
+git clone https://github.com/YousefAlgharasi/LinuxNetWatch
+cd LinuxNetWatch
+./packaging/build-deb.sh
+sudo apt install ./linuxnetwatch_0.1.0_all.deb
+```
+
+### Option B: install script (for development)
+
 ```bash
 git clone https://github.com/YousefAlgharasi/LinuxNetWatch
 cd LinuxNetWatch
@@ -51,10 +78,9 @@ chmod +x install.sh
 ./install.sh
 ```
 
-This installs `nethogs`, `iptables`, `iproute2` (for `tc`), `policykit-1`
-(for `pkexec`), and GTK dependencies; sets up and starts the collector as a
-systemd service; and installs the `linuxnetwatch` viewer command plus an
-app-menu shortcut.
+This installs the same dependencies and systemd service but only sets up
+autostart/shortcuts for your own user account, and copies source files
+instead of packaging them — more convenient when you're editing the code.
 
 ## Run
 
