@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LinuxNetWatch
+Comment=Per-app internet usage monitor
+Exec=linuxnetwatch
+Icon=network-transmit-receive
+Terminal=false
+Categories=System;Network;Monitor;
