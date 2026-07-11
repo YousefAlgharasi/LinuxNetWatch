@@ -46,12 +46,13 @@ Only the *live rate limit* (KB/s) is upload-only.
 
 ### Option A: .deb package (easiest)
 
-Download the latest `linuxnetwatch_<version>_all.deb` from the
-[Releases](https://github.com/YousefAlgharasi/LinuxNetWatch/releases) page
+Download the prebuilt package from
+[`dist/linuxnetwatch_0.1.0_all.deb`](https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.1.0_all.deb)
 and install it:
 
 ```bash
-sudo apt install ./linuxnetwatch_*_all.deb
+wget https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.1.0_all.deb
+sudo apt install ./linuxnetwatch_0.1.0_all.deb
 ```
 
 `apt` resolves and installs all dependencies automatically, sets up the
