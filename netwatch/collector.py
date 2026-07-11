@@ -24,7 +24,10 @@ LINE_RE = re.compile(r"^(.+)/(\d+)/(\d+)\t([\d.]+)\t([\d.]+)$")
 def app_name_from_path(path):
     if path in ("unknown TCP", "TIME_WAIT", "unknown UDP"):
         return path
-    return os.path.basename(path.rstrip("/")) or path
+    # Some sandboxed processes (e.g. Chromium/Brave renderers) report their
+    # full command line, flags included, instead of a clean binary path.
+    binary = path.split(" ", 1)[0]
+    return os.path.basename(binary.rstrip("/")) or path
 
 
 def run():

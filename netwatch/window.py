@@ -59,11 +59,19 @@ class NetWatchWindow(Gtk.Window):
         # App, Download, Upload, Total
         self.store = Gtk.ListStore(str, str, str, str, int)
         self.view = Gtk.TreeView(model=self.store)
+        self.view.set_fixed_height_mode(True)
         for i, title in enumerate(["App", "Download", "Upload", "Total"]):
             renderer = Gtk.CellRendererText()
             column = Gtk.TreeViewColumn(title, renderer, text=i)
             column.set_resizable(True)
             column.set_sort_column_id(i if i == 0 else 4)
+            column.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
+            if i == 0:
+                renderer.set_property("ellipsize", 3)  # PANGO_ELLIPSIZE_END
+                column.set_fixed_width(320)
+                column.set_expand(True)
+            else:
+                column.set_fixed_width(100)
             self.view.append_column(column)
         self.view.connect("row-activated", self.on_row_activated)
 
