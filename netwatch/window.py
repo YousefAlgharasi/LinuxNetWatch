@@ -2,6 +2,8 @@
 """LinuxNetWatch: per-app bandwidth usage monitor."""
 import os
 import sys
+import time
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -23,6 +25,20 @@ def human_bytes(n):
             return f"{n:.1f} {unit}"
         n /= 1024
     return f"{n:.1f} TB"
+
+
+def human_duration(seconds):
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h {minutes % 60}m"
+    days = hours // 24
+    return f"{days}d {hours % 24}h"
 
 
 class NetWatchWindow(Gtk.Window):
@@ -55,6 +71,10 @@ class NetWatchWindow(Gtk.Window):
 
         self.totals_label = Gtk.Label(label="")
         top_bar.pack_end(self.totals_label, False, False, 0)
+
+        self.status_label = Gtk.Label(label="", xalign=0)
+        self.status_label.get_style_context().add_class("dim-label")
+        root.pack_start(self.status_label, False, False, 0)
 
         # App, Download, Upload, Total
         self.store = Gtk.ListStore(str, str, str, str, int)
@@ -119,6 +139,23 @@ class NetWatchWindow(Gtk.Window):
             f"Total upload: {human_bytes(total_sent)}   "
             f"Combined: {human_bytes(total_sent + total_recv)}"
         )
+        self._update_status_label(range_key)
+
+    def _update_status_label(self, range_key):
+        earliest = db.earliest_sample_ts(self.conn)
+        if earliest is None:
+            self.status_label.set_text("No data collected yet.")
+            return
+        collecting_seconds = time.time() - earliest
+        range_seconds = db.TIME_RANGES[range_key]
+        started = datetime.fromtimestamp(earliest).strftime("%H:%M:%S")
+        if collecting_seconds < range_seconds:
+            self.status_label.set_text(
+                f"Collecting since {started} — only {human_duration(collecting_seconds)} of "
+                f"data so far, less than the selected {range_key} range."
+            )
+        else:
+            self.status_label.set_text(f"Collecting since {started}.")
 
     def on_row_activated(self, view, path, column):
         model = view.get_model()

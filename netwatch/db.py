@@ -72,3 +72,8 @@ def grand_totals(conn, range_key):
 
 def prune_older_than(conn, seconds):
     conn.execute("DELETE FROM usage_samples WHERE ts < ?", (time.time() - seconds,))
+
+
+def earliest_sample_ts(conn):
+    row = conn.execute("SELECT MIN(ts) FROM usage_samples").fetchone()
+    return row[0]
