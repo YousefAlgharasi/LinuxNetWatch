@@ -44,6 +44,11 @@ sudo mkdir -p /usr/share/icons/hicolor/scalable/apps
 sudo cp "$SRC_DIR/icons/datapulse.svg" /usr/share/icons/hicolor/scalable/apps/datapulse.svg
 sudo gtk-update-icon-cache -f /usr/share/icons/hicolor > /dev/null 2>&1 || true
 
+echo "==> Installing AppStream metadata"
+sudo mkdir -p /usr/share/metainfo
+sudo cp "$SRC_DIR/packaging/metainfo/io.github.yousefalgharasi.datapulse.metainfo.xml" \
+    /usr/share/metainfo/
+
 echo "==> Installing the DataPulse viewer (runs as your user)"
 VIEWER_DIR="$HOME/.local/share/datapulse"
 mkdir -p "$VIEWER_DIR"

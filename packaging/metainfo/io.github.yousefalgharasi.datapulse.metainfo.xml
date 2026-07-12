@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.yousefalgharasi.datapulse</id>
+  <name>DataPulse</name>
+  <summary>Per-app internet usage monitor and controller</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      DataPulse shows how much data each application on your system has
+      downloaded and uploaded, filterable by time range from 5 minutes up
+      to 30 days, with a tray icon showing a live combined total.
+    </p>
+    <p>
+      Beyond monitoring, DataPulse can block an individual app's network
+      access, throttle its upload bandwidth, set a daily data cap that
+      auto-blocks the app once reached, or run a kill-switch mode that
+      blocks every app except an allow-listed set.
+    </p>
+  </description>
+  <launchable type="desktop-id">datapulse.desktop</launchable>
+  <url type="homepage">https://github.com/YousefAlgharasi/LinuxNetWatch</url>
+  <url type="bugtracker">https://github.com/YousefAlgharasi/LinuxNetWatch/issues</url>
+  <provides>
+    <binary>datapulse</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.3.0" date="2026-07-12">
+      <description>
+        <p>Renamed to DataPulse with a custom icon, added prerequisite
+        checks, Rules overview, Kill Switch, CSV export, per-app usage
+        charts, and desktop notifications for daily-cap auto-blocks.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -15,6 +15,7 @@ mkdir -p "$PKG_DIR/usr/share/applications"
 mkdir -p "$PKG_DIR/etc/xdg/autostart"
 mkdir -p "$PKG_DIR/lib/systemd/system"
 mkdir -p "$PKG_DIR/usr/share/icons/hicolor/scalable/apps"
+mkdir -p "$PKG_DIR/usr/share/metainfo"
 
 # DEBIAN control files
 sed "s/__VERSION__/$VERSION/" "$REPO_ROOT/packaging/debian/control" > "$PKG_DIR/DEBIAN/control"
@@ -49,6 +50,10 @@ for size in 16 22 24 32 48 64 128 256; do
         "$PKG_DIR/usr/share/icons/hicolor/${size}x${size}/apps/datapulse.png"
 done
 cp "$REPO_ROOT/icons/datapulse.svg" "$PKG_DIR/usr/share/icons/hicolor/scalable/apps/datapulse.svg"
+
+# AppStream metadata (for the Software store listing)
+cp "$REPO_ROOT/packaging/metainfo/io.github.yousefalgharasi.datapulse.metainfo.xml" \
+    "$PKG_DIR/usr/share/metainfo/"
 
 # systemd service
 cp "$REPO_ROOT/packaging/debian/datapulse-collector.service" \
