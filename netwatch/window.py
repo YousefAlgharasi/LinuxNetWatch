@@ -15,7 +15,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
 
-from netwatch import db, netctl, prereqs
+from netwatch import db, netctl, prefs, prereqs
 
 REFRESH_MS = 5000
 RANGE_LABELS = ["5m", "10m", "1h", "3h", "7h", "1d", "2d", "7d", "30d"]
@@ -68,8 +68,12 @@ class NetWatchWindow(Gtk.Window):
         self.range_combo = Gtk.ComboBoxText()
         for label in RANGE_LABELS:
             self.range_combo.append_text(label)
-        self.range_combo.set_active(RANGE_LABELS.index("1h"))
-        self.range_combo.connect("changed", lambda _w: self.refresh())
+        saved_range = prefs.get_range()
+        self.range_combo.set_active(
+            RANGE_LABELS.index(saved_range) if saved_range in RANGE_LABELS
+            else RANGE_LABELS.index("1h")
+        )
+        self.range_combo.connect("changed", self.on_range_changed)
         top_bar.pack_start(self.range_combo, False, False, 0)
 
         rules_button = Gtk.Button(label="Rules")
@@ -145,6 +149,10 @@ class NetWatchWindow(Gtk.Window):
     def _on_timeout(self):
         self.refresh()
         return True
+
+    def on_range_changed(self, _widget):
+        prefs.set_range(self.current_range())
+        self.refresh()
 
     def current_range(self):
         return self.range_combo.get_active_text() or "1h"

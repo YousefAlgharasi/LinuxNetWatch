@@ -14,7 +14,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("AppIndicator3", "0.1")
 from gi.repository import AppIndicator3, GLib, Gtk
 
-from netwatch import db, netctl
+from netwatch import db, netctl, prefs
 from netwatch.window import RANGE_LABELS, NetWatchWindow, human_bytes
 
 APP_ID = "datapulse"
@@ -54,7 +54,8 @@ class NetWatchTray:
             self.conn = None
 
         self.window = None
-        self.range_key = DEFAULT_RANGE
+        saved_range = prefs.get_range(DEFAULT_RANGE)
+        self.range_key = saved_range if saved_range in RANGE_LABELS else DEFAULT_RANGE
         self._last_event_check = time.time()
 
         self.menu = Gtk.Menu()
@@ -74,7 +75,7 @@ class NetWatchTray:
         for label in RANGE_LABELS:
             item = Gtk.RadioMenuItem.new_with_label_from_widget(group, label)
             group = item
-            item.set_active(label == DEFAULT_RANGE)
+            item.set_active(label == self.range_key)
             item.connect("toggled", self.on_range_toggled, label)
             self.menu.append(item)
             self.range_items[label] = item
@@ -99,6 +100,7 @@ class NetWatchTray:
         if not widget.get_active():
             return
         self.range_key = label
+        prefs.set_range(label)
         self.refresh()
 
     def on_open(self, _widget):
