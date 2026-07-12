@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=LinuxNetWatch
+Name=DataPulse
 Comment=Per-app internet usage monitor
-Exec=linuxnetwatch
-Icon=network-transmit-receive
+Exec=datapulse
+Icon=datapulse
 Terminal=false
 Categories=System;Network;Monitor;
 X-GNOME-Autostart-Delay=15

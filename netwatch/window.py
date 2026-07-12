@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LinuxNetWatch: per-app bandwidth usage monitor."""
+"""DataPulse: per-app bandwidth usage monitor."""
 import os
 import subprocess
 import sys
@@ -46,7 +46,7 @@ def human_duration(seconds):
 
 class NetWatchWindow(Gtk.Window):
     def __init__(self):
-        super().__init__(title="LinuxNetWatch")
+        super().__init__(title="DataPulse")
         self.set_default_size(640, 420)
         self.set_border_width(8)
 
@@ -122,7 +122,7 @@ class NetWatchWindow(Gtk.Window):
         if self._db_error:
             root.pack_start(
                 Gtk.Label(label=f"Database unavailable: {self._db_error}\n"
-                                 "Is the linuxnetwatch collector service running?"),
+                                 "Is the datapulse-collector service running?"),
                 False, False, 0,
             )
 
@@ -369,7 +369,7 @@ class NetWatchWindow(Gtk.Window):
         warning = Gtk.Label(
             label="When enabled, every app EXCEPT the ones checked below loses "
                   "network access (DNS and loopback stay allowed). This affects "
-                  "the whole machine, not just apps LinuxNetWatch already knows "
+                  "the whole machine, not just apps DataPulse already knows "
                   "about.",
             xalign=0,
         )

@@ -3,7 +3,8 @@ set -e
 
 if [ "$1" = "configure" ]; then
     systemctl daemon-reload || true
-    systemctl enable --now linuxnetwatch-collector.service || true
+    systemctl enable --now datapulse-collector.service || true
+    gtk-update-icon-cache -f /usr/share/icons/hicolor > /dev/null 2>&1 || true
 fi
 
 exit 0

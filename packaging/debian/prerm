@@ -2,7 +2,7 @@
 set -e
 
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
-    systemctl disable --now linuxnetwatch-collector.service || true
+    systemctl disable --now datapulse-collector.service || true
 fi
 
 exit 0

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LinuxNetWatch tray icon: shows live combined bandwidth total, opens the full viewer."""
+"""DataPulse tray icon: shows live combined bandwidth total, opens the full viewer."""
 import fcntl
 import os
 import subprocess
@@ -17,10 +17,10 @@ from gi.repository import AppIndicator3, GLib, Gtk
 from netwatch import db, netctl
 from netwatch.window import RANGE_LABELS, NetWatchWindow, human_bytes
 
-APP_ID = "linuxnetwatch"
+APP_ID = "datapulse"
 REFRESH_MS = 5000
 DEFAULT_RANGE = "1h"
-LOCK_PATH = os.path.expanduser("~/.cache/linuxnetwatch-tray.lock")
+LOCK_PATH = os.path.expanduser("~/.cache/datapulse-tray.lock")
 
 
 def acquire_single_instance_lock():
@@ -36,7 +36,7 @@ def acquire_single_instance_lock():
     try:
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        print("LinuxNetWatch tray is already running.", file=sys.stderr)
+        print("DataPulse tray is already running.", file=sys.stderr)
         sys.exit(1)
     return lock_file  # keep a reference so the lock isn't released by GC
 
@@ -44,7 +44,7 @@ def acquire_single_instance_lock():
 class NetWatchTray:
     def __init__(self):
         self.indicator = AppIndicator3.Indicator.new(
-            APP_ID, "network-transmit-receive", AppIndicator3.IndicatorCategory.APPLICATION_STATUS
+            APP_ID, "datapulse", AppIndicator3.IndicatorCategory.APPLICATION_STATUS
         )
         self.indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
 
@@ -81,7 +81,7 @@ class NetWatchTray:
 
         self.menu.append(Gtk.SeparatorMenuItem())
 
-        open_item = Gtk.MenuItem(label="Open LinuxNetWatch")
+        open_item = Gtk.MenuItem(label="Open DataPulse")
         open_item.connect("activate", self.on_open)
         self.menu.append(open_item)
 
@@ -131,7 +131,7 @@ class NetWatchTray:
         self._last_event_check = time.time()
         for event in events:
             self._notify(
-                f"LinuxNetWatch: {event['app_name']} blocked",
+                f"DataPulse: {event['app_name']} blocked",
                 event["reason"].capitalize(),
             )
 
