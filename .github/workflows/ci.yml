@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Python syntax
+        run: python3 -m py_compile netwatch/*.py
+
+      - name: Validate AppStream metadata XML
+        run: python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('packaging/metainfo/io.github.yousefalgharasi.datapulse.metainfo.xml')"
+
+      - name: Shellcheck install scripts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck install.sh packaging/build-deb.sh
+
+      - name: Build .deb
+        run: |
+          chmod +x packaging/build-deb.sh
+          ./packaging/build-deb.sh 0.0.0-ci
+
+      - name: Verify .deb metadata
+        run: dpkg-deb -I datapulse_0.0.0-ci_all.deb
