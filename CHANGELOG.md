@@ -2,6 +2,21 @@
 
 All notable changes to DataPulse (formerly LinuxNetWatch) are documented here.
 
+## [0.4.0] - 2026-07-12
+
+### Added
+- `CHANGELOG.md`, `.github/workflows/ci.yml` (syntax check, AppStream XML
+  validation, shellcheck, `.deb` build verification on every push/PR).
+- Remembers the last-selected time range across restarts, shared between
+  the tray menu and the main window (`~/.config/datapulse/prefs.json`).
+
+### Fixed
+- The collector now explicitly monitors every active non-loopback network
+  interface instead of letting `nethogs` guess a single default, and
+  restarts it automatically when the active interface set changes (e.g.
+  Wi-Fi to Ethernet, a VPN connecting/disconnecting) instead of silently
+  continuing to watch a stale interface.
+
 ## [0.3.0] - 2026-07-12
 
 ### Added
