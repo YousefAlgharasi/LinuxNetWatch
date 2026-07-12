@@ -1,11 +1,12 @@
 [Unit]
 Description=LinuxNetWatch per-app bandwidth collector
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/python3 /usr/lib/linuxnetwatch/netwatch/collector.py
-Restart=on-failure
+Restart=always
 RestartSec=5
 
 [Install]

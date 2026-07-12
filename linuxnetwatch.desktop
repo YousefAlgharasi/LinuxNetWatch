@@ -6,3 +6,4 @@ Exec=linuxnetwatch
 Icon=network-transmit-receive
 Terminal=false
 Categories=System;Network;Monitor;
+X-GNOME-Autostart-Delay=15

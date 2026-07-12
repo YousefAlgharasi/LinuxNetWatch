@@ -36,17 +36,29 @@ def run():
     os.chmod(os.path.dirname(db.DB_PATH), 0o755)
     conn = db.connect()
     os.chmod(db.DB_PATH, 0o644)
-    sample_count = 0
 
     try:
         netctl.apply_all_rules()
     except netctl.NetCtlError as exc:
         print(f"warning: failed to apply saved network rules: {exc}", file=sys.stderr)
 
+    # nethogs can fail to find an interface right after boot (network not up
+    # yet) and exit immediately; that would otherwise silently end this
+    # process with a "successful" exit code and never restart. Keep retrying
+    # instead of trusting systemd's Restart=on-failure to catch it.
+    while True:
+        run_nethogs_session(conn)
+        print("nethogs exited, retrying in 10s", file=sys.stderr)
+        time.sleep(10)
+
+
+def run_nethogs_session(conn):
+    sample_count = 0
+
     proc = subprocess.Popen(
         ["nethogs", "-t", "-d", str(INTERVAL_SECONDS)],
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         text=True,
         bufsize=1,
     )
@@ -120,6 +132,11 @@ def run():
         app_name = app_name_from_path(path)
         prev_sent, prev_recv = pending.get(app_name, (0.0, 0.0))
         pending[app_name] = (prev_sent + float(sent_kbps), prev_recv + float(recv_kbps))
+
+    proc.wait()
+    stderr_output = proc.stderr.read() if proc.stderr else ""
+    if stderr_output.strip():
+        print(f"nethogs stderr: {stderr_output.strip()}", file=sys.stderr)
 
 
 if __name__ == "__main__":
