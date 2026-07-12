@@ -112,6 +112,31 @@ Check the collector is healthy any time with:
 systemctl status linuxnetwatch-collector.service
 ```
 
+## Updating
+
+Always update by re-running the full install, not by manually copying
+individual files — a partial update (e.g. only copying `netwatch/*.py`) can
+leave other generated files (like the `linuxnetwatch` launcher script) stale
+and pointing at old behavior.
+
+**.deb install:**
+
+```bash
+git pull
+./packaging/build-deb.sh <new-version>
+sudo apt install ./linuxnetwatch_<new-version>_all.deb
+```
+
+**install.sh setup:**
+
+```bash
+git pull
+./install.sh
+```
+
+`install.sh` is safe to re-run any time — it regenerates every file it
+manages (including the launcher script) rather than only patching things.
+
 ## Known limitations
 
 - Block/limit/cap rules apply to every process with a matching binary name —
