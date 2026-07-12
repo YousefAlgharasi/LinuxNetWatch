@@ -55,12 +55,12 @@ Only the *live rate limit* (KB/s) is upload-only.
 ### Option A: .deb package (easiest)
 
 Download the prebuilt package from
-[`dist/linuxnetwatch_0.2.1_all.deb`](https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.2.1_all.deb)
+[`dist/linuxnetwatch_0.2.2_all.deb`](https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.2.2_all.deb)
 and install it:
 
 ```bash
-wget https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.2.1_all.deb
-sudo apt install ./linuxnetwatch_0.2.1_all.deb
+wget https://github.com/YousefAlgharasi/LinuxNetWatch/raw/main/dist/linuxnetwatch_0.2.2_all.deb
+sudo apt install ./linuxnetwatch_0.2.2_all.deb
 ```
 
 `apt` resolves and installs all dependencies automatically, sets up the
@@ -74,8 +74,8 @@ To build the `.deb` yourself instead of downloading it:
 ```bash
 git clone https://github.com/YousefAlgharasi/LinuxNetWatch
 cd LinuxNetWatch
-./packaging/build-deb.sh 0.2.1
-sudo apt install ./linuxnetwatch_0.2.1_all.deb
+./packaging/build-deb.sh 0.2.2
+sudo apt install ./linuxnetwatch_0.2.2_all.deb
 ```
 
 ### Option B: install script (for development)
@@ -94,11 +94,17 @@ instead of packaging them — more convenient when you're editing the code.
 ## Run
 
 LinuxNetWatch starts automatically on login as a **tray icon** showing your
-last-24h combined download/upload total. Click it and choose "Open
-LinuxNetWatch" for the full window: pick a time range from the dropdown, and
-double-click any app row to see details and set controls. Checking "Disable
-network access" or clicking "Apply" on a limit will prompt for your password
-via `pkexec` the first time.
+combined download/upload total for a time range you pick right from the tray
+menu (defaults to 1h — same range list as the full window: 5m, 10m, 1h, 3h,
+7h, 1d, 2d, 7d, 30d). Click "Open LinuxNetWatch" for the full window: pick a
+time range from the dropdown, and double-click any app row to see details
+and set controls. Checking "Disable network access" or clicking "Apply" on a
+limit will prompt for your password via `pkexec` the first time.
+
+Only one tray instance can run at a time — starting a second one (e.g. by
+running it manually while it's already active) exits immediately with
+"LinuxNetWatch tray is already running" instead of silently conflicting with
+the first and neither one showing an icon.
 
 Check the collector is healthy any time with:
 
