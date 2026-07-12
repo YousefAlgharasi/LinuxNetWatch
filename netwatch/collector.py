@@ -12,7 +12,7 @@ import time
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from netwatch import db, netctl
+from netwatch import db, netctl, prereqs
 
 INTERVAL_SECONDS = 5
 PRUNE_AFTER_SECONDS = 31 * 24 * 60 * 60  # keep ~31 days
@@ -32,6 +32,9 @@ def app_name_from_path(path):
 
 
 def run():
+    for name, detail in prereqs.missing_prerequisites():
+        print(f"warning: {name} not available -- {detail}", file=sys.stderr)
+
     os.makedirs(os.path.dirname(db.DB_PATH), exist_ok=True)
     os.chmod(os.path.dirname(db.DB_PATH), 0o755)
     conn = db.connect()

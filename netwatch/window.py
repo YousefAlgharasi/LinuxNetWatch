@@ -15,7 +15,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
 
-from netwatch import db, netctl
+from netwatch import db, netctl, prereqs
 
 REFRESH_MS = 5000
 RANGE_LABELS = ["5m", "10m", "1h", "3h", "7h", "1d", "2d", "7d", "30d"]
@@ -125,6 +125,18 @@ class NetWatchWindow(Gtk.Window):
                                  "Is the datapulse-collector service running?"),
                 False, False, 0,
             )
+
+        missing = prereqs.missing_prerequisites()
+        if missing:
+            warning_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            warning_box.get_style_context().add_class("dim-label")
+            header = Gtk.Label(label="Some features may not work:", xalign=0)
+            warning_box.add(header)
+            for name, detail in missing:
+                label = Gtk.Label(label=f"  • {name}: {detail}", xalign=0)
+                label.set_line_wrap(True)
+                warning_box.add(label)
+            root.pack_start(warning_box, False, False, 0)
 
         self.show_all()
         GLib.timeout_add(REFRESH_MS, self._on_timeout)
