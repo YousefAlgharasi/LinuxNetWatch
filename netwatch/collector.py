@@ -31,6 +31,31 @@ def app_name_from_path(path):
     return os.path.basename(binary.rstrip("/")) or path
 
 
+IFACE_RE = re.compile(r"^\d+:\s+([^:@]+)[:@]")
+
+
+def get_active_interfaces():
+    """Return the set of non-loopback interfaces that are currently up.
+
+    Explicitly passing these to nethogs (rather than letting it guess one
+    default) means traffic on any active interface is monitored, and lets
+    the collector notice when the set changes (e.g. switching Wi-Fi to
+    Ethernet, a VPN tunnel connecting) instead of silently only watching
+    whatever interface happened to be up when nethogs was first launched.
+    """
+    try:
+        result = subprocess.run(["ip", "-o", "link", "show", "up"],
+                                 capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    interfaces = set()
+    for line in result.stdout.splitlines():
+        match = IFACE_RE.match(line)
+        if match and match.group(1) != "lo":
+            interfaces.add(match.group(1))
+    return interfaces
+
+
 def run():
     for name, detail in prereqs.missing_prerequisites():
         print(f"warning: {name} not available -- {detail}", file=sys.stderr)
@@ -58,8 +83,10 @@ def run():
 def run_nethogs_session(conn):
     sample_count = 0
 
+    interfaces = get_active_interfaces()
+    cmd = ["nethogs", "-t", "-d", str(INTERVAL_SECONDS), *sorted(interfaces)]
     proc = subprocess.Popen(
-        ["nethogs", "-t", "-d", str(INTERVAL_SECONDS)],
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -84,6 +111,13 @@ def run_nethogs_session(conn):
         if sample_count % PRUNE_EVERY_N_SAMPLES == 0:
             db.prune_older_than(conn, PRUNE_AFTER_SECONDS)
             conn.commit()
+
+        current_interfaces = get_active_interfaces()
+        if current_interfaces != interfaces:
+            print(f"network interfaces changed ({interfaces} -> {current_interfaces}), "
+                  "restarting nethogs to pick them up", file=sys.stderr)
+            proc.terminate()
+            return
 
         rules = netctl.load_rules()
         if rules:
